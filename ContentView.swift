@@ -22,7 +22,9 @@ struct ContentView: View {
     @State var dragPoint: CGPoint = .zero
     @State var lastRotateAmount: CGSize = .zero
     @State var totalAngle: SIMD2<Float> = .zero
-    @State var magnifyAmount: CGFloat = 1.0
+    
+    @State var initialMagnify: Float = 0
+    @State var magnifyAmount: Float = 0
     
     @State var radius: Float = 10
     @State var strength: Float = 0
@@ -33,7 +35,10 @@ struct ContentView: View {
     let device = MTLCreateSystemDefaultDevice()!
     let commandQueue: MTLCommandQueue
     
-    let heightMapBuffer: (any MTLBuffer)?
+    /// A heightmap buffer for gpu.
+    let heightMapGPUBuffer: (any MTLBuffer)?
+    /// A heightmap buffer for the audio thread.
+    let heightMapAudioBuffer: (any MTLBuffer)?
     let heightMapMeshEntity: HeightMapMeshEntity
     
     let audioPlayer: AudioPlayer?
@@ -47,15 +52,19 @@ struct ContentView: View {
         let heightMap = [Float].init(repeating: 0.5, count: w * h)
         let bufferSize = w * h * MemoryLayout<Float>.size
         
-        if let buffer = device.makeBuffer(bytes: heightMap, length: bufferSize, options: .storageModeShared) {
-            heightMapBuffer = buffer
-            audioPlayer = AudioPlayer(dimension: meshDimension, buffer: buffer)
+        if let gpuBuffer = device.makeBuffer(bytes: heightMap, length: bufferSize, options: .storageModeShared),
+           let audioBuffer = device.makeBuffer(bytes: heightMap, length: bufferSize, options: .storageModeShared) {
+            heightMapGPUBuffer = gpuBuffer
+            heightMapAudioBuffer = audioBuffer
+            let pointer = audioBuffer.contents().bindMemory(to: Float.self, capacity: bufferSize)
+            audioPlayer = AudioPlayer(dimension: meshDimension, pointer: pointer)
         } else {
-            heightMapBuffer = nil
+            heightMapGPUBuffer = nil
+            heightMapAudioBuffer = nil
             audioPlayer = nil
         }
 
-        heightMapMeshEntity = HeightMapMeshEntity(device: device, playhead: audioPlayer!.playhead, size: meshSize, dimensions: [UInt32(meshDimension.x), UInt32(meshDimension.y)], maxThickness: 0.25, baseThickness: 0.1)
+        heightMapMeshEntity = HeightMapMeshEntity(device: device, playhead: &audioPlayer!.playhead, size: meshSize, dimensions: [UInt32(meshDimension.x), UInt32(meshDimension.y)], maxThickness: 0.25, baseThickness: 0.1)
     }
     
     var body: some View {
@@ -105,14 +114,12 @@ struct ContentView: View {
             RealityView { content in
                 // Add the HeightMapMeshEntity
                 content.add(heightMapMeshEntity)
-                // Set the initial transform for the entity
-                heightMapMeshEntity.transform = Transform(translation: [0, -0.2, 0])
                 
                 // Prepare the mesh
                 guard let commandBuffer = commandQueue.makeCommandBuffer(),
                       let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
                 let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-                heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: heightMapBuffer, height: 0.5)
+                heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: heightMapGPUBuffer, height: 0.5)
                 
                 computeEncoder.endEncoding()
                 commandBuffer.commit()
@@ -121,12 +128,12 @@ struct ContentView: View {
                     guard let commandBuffer = commandQueue.makeCommandBuffer(),
                           let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
                     let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-                    heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: heightMapBuffer, radius: radius * 0.1, strength: strength * 0.0001)
+                    heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: heightMapGPUBuffer, radius: radius * 0.1, strength: strength * 0.0001)
                     
                     computeEncoder.endEncoding()
                     commandBuffer.commit()
                     
-                    heightMapMeshEntity.updateMaterial()
+                    heightMapMeshEntity.updateMaterial(playhead: isPlayingAudio ? audioPlayer!.playhead : -1)
                 }
             } update: { content in
                 if currentMode == .edit {
@@ -146,6 +153,7 @@ struct ContentView: View {
                     }
                 }
             }
+            // Only if the current mode is edit mode
             .gesture(
                 currentMode == .edit
                 ? DragGesture(coordinateSpace: .global)
@@ -157,18 +165,23 @@ struct ContentView: View {
                     .onEnded { value in
                         dragPoint = value.location
                         heightMapMeshEntity.heightMapMesh?.isInteractionHappening = false
+                        
                         heightMapMeshEntity.stopHighlight()
                         heightMapMeshEntity.updateCollision()
                         
+                        let src = heightMapGPUBuffer!.contents()
+                        let dst = heightMapAudioBuffer!.contents()
+                        memcpy(dst, src, heightMapGPUBuffer!.length)
                         audioPlayer?.updateFrequencies()
                     } : nil
             )
+            // Only if the current mode is camera movement mode
             .gesture(
                 currentMode == .camera
                 ? DragGesture()
                     .onChanged { value in
                         let rotDelta: SIMD2<Float> = [Float(value.translation.width - lastRotateAmount.width), Float(value.translation.height - lastRotateAmount.height)]
-                        totalAngle += rotDelta / 1000
+                        totalAngle += rotDelta / 700
                         let rotY = simd_quatf(angle: totalAngle.y, axis: SIMD3(1, 0, 0))
                         let rotX = simd_quatf(angle: totalAngle.x, axis: SIMD3(0, 1, 0))
                         heightMapMeshEntity.setOrientation(rotY * rotX, relativeTo: nil)
@@ -181,9 +194,15 @@ struct ContentView: View {
             .gesture(
                 MagnifyGesture()
                     .onChanged { value in
-                        magnifyAmount *= value.magnification
+                        let logScale = log(Float(value.magnification))
+                        magnifyAmount = max(0.5, min(initialMagnify + logScale, 2.0))
+                        heightMapMeshEntity.transform.translation = [0, 0, -1 + magnifyAmount]
+                    }
+                    .onEnded { _ in
+                        initialMagnify = magnifyAmount
                     }
             )
         }
     }
 }
+

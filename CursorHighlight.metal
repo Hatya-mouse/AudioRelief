@@ -22,11 +22,15 @@ void highlightCursorShader(realitykit::surface_parameters params) {
     // Calculate the color based on the height
     float normalizedHeight = saturate(height / MAX_THICKNESS);
 
-    half3 lowColor = half3(0.1, 0.5, 0.1);
-    half3 highColor = half3(0.5, 0.3, 0.1);
+    half3 lowColor = half3(0.35, 0.4, 0.9);
+    half3 highColor = half3(0.9, 0.4, 0.73);
     half3 finalColor = mix(lowColor, highColor, normalizedHeight);
 
     params.surface().set_base_color(finalColor);
+    
+    // Adjust roughness & metalic
+    params.surface().set_roughness(0.8);
+    params.surface().set_metallic(0.0);
     
     // Calculate the distance to the cursor and highlight around it
     float2 currentPos = params.geometry().model_position().xz;

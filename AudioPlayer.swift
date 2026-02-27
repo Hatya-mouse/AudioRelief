@@ -8,52 +8,40 @@
 import Foundation
 import AVFoundation
 import CoreAudio
+import Synchronization
 
 class AudioPlayer {
     let audioEngine: AVAudioEngine
     let audioFormat: AVAudioFormat
     
     let dimension: SIMD2<Int>
-    let heightMap: UnsafeMutablePointer<Float>
+    let heightMapPointer: UnsafePointer<Float>
     
     let sampleRate: Float = 44100.0
     let deltaTime: Float
     
-    var frequencies = [Float]()
+    let frequencies: PointerPair<Float>
     
-    var isStopping: UnsafeMutablePointer<Bool>
-    var playhead: UnsafeMutablePointer<Float>
+    var isStopping: Bool
+    var playhead: Float
     
-    init(dimension: SIMD2<Int>, buffer: any MTLBuffer) {
+    init(dimension: SIMD2<Int>, pointer: UnsafePointer<Float>) {
         self.audioEngine = AVAudioEngine()
         self.audioFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(self.sampleRate), channels: 1, interleaved: true)!
         self.dimension = dimension
         
-        let capacity = dimension.x * dimension.y * MemoryLayout<Float>.size
-        self.heightMap = buffer.contents().bindMemory(to: Float.self, capacity: capacity)
+        self.heightMapPointer = pointer
         self.deltaTime = 1.0 / self.sampleRate
         
-        self.isStopping = .allocate(capacity: 1)
-        self.isStopping.pointee = false
+        self.frequencies = PointerPair(.allocate(capacity: dimension.x), .allocate(capacity: dimension.x))
         
-        self.playhead = .allocate(capacity: 1)
-        self.playhead.pointee = 0.0
+        self.isStopping = false
+        self.playhead = 0
         
         self.updateFrequencies()
     }
     
     func play() {
-        let capacity = dimension.x * dimension.y
-        let heightMap = Array(UnsafeBufferPointer(start: self.heightMap, count: capacity))
-        
-        let dimension = self.dimension
-        let frequencies = self.frequencies
-        let sampleRate = self.sampleRate
-        let deltaTime = self.deltaTime
-        
-        let playhead = self.playhead
-        let isStopping = self.isStopping
-        
         var time: Float = 0.0
         var phase: Float = 0.0
         var volume: Float = 0.0
@@ -63,13 +51,12 @@ class AudioPlayer {
             let listPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
             
             for frame in 0..<Int(frameCount) {
-                let frequency = AudioPlayer.interpolateFrequency(playhead.pointee, freqs: frequencies, dim: dimension)
-                let sample = AudioPlayer.getSample(heightMap: heightMap, playhead: playhead.pointee, phase: phase, dim: dimension) * volume
+                let frequency = self.interpolateFrequency(self.playhead)
+                let sample = self.getSample(phase: phase) * volume
                 
-                if isStopping.pointee {
+                if self.isStopping {
                     volume = volume * 0.99
-                }
-                if volume < 0.5 {
+                } else if volume < 0.5 {
                     volume = volume * 0.99 + 0.5 * 0.01
                 }
                 
@@ -78,10 +65,10 @@ class AudioPlayer {
                     bufferPointer[frame] = sample
                 }
                 
-                let deltaPhase = frequency / sampleRate
+                let deltaPhase = frequency / self.sampleRate
                 phase = (phase + deltaPhase).truncatingRemainder(dividingBy: 1)
-                playhead.pointee = (playhead.pointee + 0.00001).truncatingRemainder(dividingBy: 1)
-                time += deltaTime
+                self.playhead = (self.playhead + 0.00001).truncatingRemainder(dividingBy: 1)
+                time += self.deltaTime
             }
             return noErr
         }
@@ -100,19 +87,20 @@ class AudioPlayer {
     }
     
     func updateFrequencies() {
-        frequencies.removeAll()
+        let writable = frequencies.getWritablePointer()
         for row in 0..<dimension.x {
-            frequencies.append(getFrequencyOf(row))
+            writable[row] = getFrequencyOf(row)
         }
+        frequencies.swap()
     }
     
     @MainActor
     func pause() {
-        self.isStopping.pointee = true
+        self.isStopping = true
         Task {
             try? await Task.sleep(nanoseconds: 50_000_000)
             
-            self.isStopping.pointee = false
+            self.isStopping = false
             self.audioEngine.stop()
             
             self.audioEngine.disconnectNodeInput(self.audioEngine.mainMixerNode)
@@ -121,25 +109,26 @@ class AudioPlayer {
     }
     
     func getFrequencyOf(_ row: Int) -> Float {
-        let start = AudioPlayer.getIndex(row, 0, width: dimension.x)
-        let buffer = UnsafeBufferPointer(start: self.heightMap.advanced(by: start), count: dimension.x)
+        let start = getIndex(row, 0)
+        let buffer = UnsafeBufferPointer(start: heightMapPointer.advanced(by: start), count: dimension.x)
         let average = buffer.reduce(0.0, +) / Float(dimension.x)
         return average * 1000
     }
     
-    static func getIndex(_ row: Int, _ col: Int, width rowWidth: Int) -> Int {
-        return col + row * rowWidth
+    func getIndex(_ row: Int, _ col: Int) -> Int {
+        return col + row * dimension.x
     }
     
-    static func interpolateFrequency(_ rowPhase: Float, freqs frequencies: [Float], dim dimension: SIMD2<Int>) -> Float {
+    func interpolateFrequency(_ rowPhase: Float) -> Float {
+        let freqs = frequencies.getReadablePointer()
         let rowFactor = rowPhase.truncatingRemainder(dividingBy: 1)
-        let firstRowFrequency = frequencies[Int(floor(rowPhase * Float(dimension.y - 1)))]
-        let secondRowFrequency = frequencies[Int(ceil(rowPhase * Float(dimension.y - 1)))]
+        let firstRowFrequency = freqs[Int(floor(rowPhase * Float(dimension.y - 1)))]
+        let secondRowFrequency = freqs[Int(ceil(rowPhase * Float(dimension.y - 1)))]
         let interpolatedFrequency = firstRowFrequency.addingProduct(rowFactor, secondRowFrequency - firstRowFrequency)
         return interpolatedFrequency
     }
     
-    static func getSample(heightMap: [Float], playhead: Float, phase: Float, dim dimension: SIMD2<Int>) -> Float {
+    func getSample(phase: Float) -> Float {
         let rowFactor = playhead.truncatingRemainder(dividingBy: 1)
         let phaseFactor = phase.truncatingRemainder(dividingBy: 1)
 
@@ -148,10 +137,10 @@ class AudioPlayer {
         let firstPhaseIndex = Int(floor(phase * Float(dimension.x - 1)))
         let secondPhaseIndex = Int(ceil(phase * Float(dimension.x - 1)))
 
-        let firstRowFirst = heightMap[getIndex(firstRowIndex, firstPhaseIndex, width: dimension.x)]
-        let firstRowSecond = heightMap[getIndex(firstRowIndex, secondPhaseIndex, width: dimension.x)]
-        let secondRowFirst = heightMap[getIndex(secondRowIndex, firstPhaseIndex, width: dimension.x)]
-        let secondRowSecond = heightMap[getIndex(secondRowIndex, secondPhaseIndex, width: dimension.x)]
+        let firstRowFirst = heightMapPointer[getIndex(firstRowIndex, firstPhaseIndex)]
+        let firstRowSecond = heightMapPointer[getIndex(firstRowIndex, secondPhaseIndex)]
+        let secondRowFirst = heightMapPointer[getIndex(secondRowIndex, firstPhaseIndex)]
+        let secondRowSecond = heightMapPointer[getIndex(secondRowIndex, secondPhaseIndex)]
 
         let firstRow = firstRowFirst.addingProduct(phaseFactor, firstRowSecond - firstRowFirst)
         let secondRow = secondRowFirst.addingProduct(phaseFactor, secondRowSecond - secondRowFirst)

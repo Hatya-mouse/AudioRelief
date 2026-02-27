@@ -67,17 +67,9 @@ class HeightMapMeshEntity: Entity, HasModel {
         }
     }
     
-    func getPlayhead() -> Float {
-        if isPlayingAudio {
-            return playhead?.pointee ?? 0
-        } else {
-            return -1
-        }
-    }
-    
-    func updateMaterial() {
+    func updateMaterial(playhead: Float) {
         guard var material = self.model?.materials.first as? CustomMaterial else { return }
-        material.custom.value = SIMD4(cursorLocation.x, cursorLocation.y, radius, getPlayhead())
+        material.custom.value = SIMD4(cursorLocation.x, cursorLocation.y, radius, playhead)
         self.model?.materials = [material]
     }
     
