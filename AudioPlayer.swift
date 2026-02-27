@@ -19,7 +19,9 @@ class AudioPlayer {
     let sampleRate: Float = 44100.0
     let deltaTime: Float
     
-    var frequencies = [Float]()
+    let harmonyDepth: Int = 5
+    let voiceNumber: Int
+    var harmony: [[(Float, Float)]] = []
     
     var isStopping: UnsafeMutablePointer<Bool>
     var playhead: UnsafeMutablePointer<Float>
@@ -32,6 +34,8 @@ class AudioPlayer {
         let capacity = dimension.x * dimension.y * MemoryLayout<Float>.size
         self.heightMap = buffer.contents().bindMemory(to: Float.self, capacity: capacity)
         self.deltaTime = 1.0 / self.sampleRate
+        
+        self.voiceNumber = harmonyDepth * 2 + 1
         
         self.isStopping = .allocate(capacity: 1)
         self.isStopping.pointee = false
@@ -47,39 +51,52 @@ class AudioPlayer {
         let heightMap = Array(UnsafeBufferPointer(start: self.heightMap, count: capacity))
         
         let dimension = self.dimension
-        let frequencies = self.frequencies
         let sampleRate = self.sampleRate
         let deltaTime = self.deltaTime
+        
+        let harmony = self.harmony
+        let voiceNumber = self.voiceNumber
         
         let playhead = self.playhead
         let isStopping = self.isStopping
         
         var time: Float = 0.0
-        var phase: Float = 0.0
-        var volume: Float = 0.0
+        var phases: [Float] = [Float](repeating: 0, count: voiceNumber)
+        var masterVolume: Float = 0.0
     
         // Create a render block to generate sound
         let renderBlock: AVAudioSourceNodeRenderBlock = { (_, _, frameCount, audioBufferList) -> OSStatus in
             let listPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
             
             for frame in 0..<Int(frameCount) {
-                let frequency = AudioPlayer.interpolateFrequency(playhead.pointee, freqs: frequencies, dim: dimension)
-                let sample = AudioPlayer.getSample(heightMap: heightMap, playhead: playhead.pointee, phase: phase, dim: dimension) * volume
+//                let frequency = AudioPlayer.interpolateFrequency(playhead.pointee, harmony: harmony, dim: dimension)
+                let currentHarmony = harmony[Int(floor(playhead.pointee))]
+                var sample: Float = 0
                 
                 if isStopping.pointee {
-                    volume = volume * 0.99
-                }
-                if volume < 0.5 {
-                    volume = volume * 0.99 + 0.5 * 0.01
+                    masterVolume = masterVolume * 0.95
+                } else if masterVolume < 1.0 {
+                    masterVolume = masterVolume * 0.95 + 0.5 * 0.05
                 }
                 
+                for voiceIndex in 0..<voiceNumber {
+                    let (frequency, voiceVolume) = currentHarmony[voiceIndex]
+                    let volume = masterVolume * voiceVolume
+                    if phases[voiceIndex].isNaN {
+                        print("NAN LMAO")
+                    }
+                    sample += AudioPlayer.getSample(heightMap: heightMap, playhead: playhead.pointee, phase: phases[voiceIndex], dim: dimension) * volume
+                    
+                    let deltaPhase = frequency / sampleRate
+                    phases[voiceIndex] = (phases[voiceIndex] + deltaPhase).truncatingRemainder(dividingBy: 1)
+                }
+                
+                sample /= Float(voiceNumber)
                 for buffer in listPointer {
                     let bufferPointer: UnsafeMutableBufferPointer<Float> = UnsafeMutableBufferPointer(buffer)
                     bufferPointer[frame] = sample
                 }
                 
-                let deltaPhase = frequency / sampleRate
-                phase = (phase + deltaPhase).truncatingRemainder(dividingBy: 1)
                 playhead.pointee = (playhead.pointee + 0.00001).truncatingRemainder(dividingBy: 1)
                 time += deltaTime
             }
@@ -100,9 +117,9 @@ class AudioPlayer {
     }
     
     func updateFrequencies() {
-        frequencies.removeAll()
+        harmony.removeAll()
         for row in 0..<dimension.x {
-            frequencies.append(getFrequencyOf(row))
+            harmony.append(getHarmony(row))
         }
     }
     
@@ -120,24 +137,36 @@ class AudioPlayer {
         }
     }
     
-    func getFrequencyOf(_ row: Int) -> Float {
+    func getHarmony(_ row: Int) -> [(Float, Float)] {
         let start = AudioPlayer.getIndex(row, 0, width: dimension.x)
         let buffer = UnsafeBufferPointer(start: self.heightMap.advanced(by: start), count: dimension.x)
-        let average = buffer.reduce(0.0, +) / Float(dimension.x)
-        return average * 1000
+        let baseFreq = (buffer.reduce(0.0, +) / Float(dimension.x)) * 1000
+        
+        let subHarmonics = (1...harmonyDepth).reversed().map { i in baseFreq * (1.0 / Float(i)) }
+        let harmonics = (1...harmonyDepth).map { i in baseFreq * Float(i) }
+        let allFreqs = subHarmonics + [1] + harmonics
+        
+        var harmony: [(Float, Float)] = []
+        let indexPerHarmony = dimension.x / voiceNumber
+        for index in 0..<voiceNumber {
+            let currentHeight = buffer[index * indexPerHarmony]
+            harmony.append((allFreqs[index], currentHeight))
+        }
+        
+        return harmony
     }
     
     static func getIndex(_ row: Int, _ col: Int, width rowWidth: Int) -> Int {
         return col + row * rowWidth
     }
     
-    static func interpolateFrequency(_ rowPhase: Float, freqs frequencies: [Float], dim dimension: SIMD2<Int>) -> Float {
-        let rowFactor = rowPhase.truncatingRemainder(dividingBy: 1)
-        let firstRowFrequency = frequencies[Int(floor(rowPhase * Float(dimension.y - 1)))]
-        let secondRowFrequency = frequencies[Int(ceil(rowPhase * Float(dimension.y - 1)))]
-        let interpolatedFrequency = firstRowFrequency.addingProduct(rowFactor, secondRowFrequency - firstRowFrequency)
-        return interpolatedFrequency
-    }
+//    static func interpolateFrequency(_ rowPhase: Float, harmony: [[Float: Float]], dim dimension: SIMD2<Int>) -> Float {
+//        let rowFactor = rowPhase.truncatingRemainder(dividingBy: 1)
+//        let firstRowFrequency = harmony[Int(floor(rowPhase * Float(dimension.y - 1)))]
+//        let secondRowFrequency = harmony[Int(ceil(rowPhase * Float(dimension.y - 1)))]
+//        let interpolatedFrequency = firstRowFrequency.addingProduct(rowFactor, secondRowFrequency - firstRowFrequency)
+//        return interpolatedFrequency
+//    }
     
     static func getSample(heightMap: [Float], playhead: Float, phase: Float, dim dimension: SIMD2<Int>) -> Float {
         let rowFactor = playhead.truncatingRemainder(dividingBy: 1)
