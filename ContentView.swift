@@ -27,7 +27,7 @@ struct ContentView: View {
                 }
                 
                 ToolbarItem(placement: .title) {
-                    Text(viewModel.currentMode == ViewMode.edit ? "Edit Mode" : "Camera Rotation Mode")
+                    Text(viewModel.currentMode == ViewMode.edit ? "Edit" : "Camera Rotation")
                         .padding()
                 }
                 

@@ -46,13 +46,15 @@ void heightMapShader(realitykit::surface_parameters params) {
     }
     
     // Highlight the playhead
+    // If the audio player is paused, playhead is less than zero
     if (playhead > 0) {
         float playheadY = playhead - SIZE_Y / 2;
-        if (currentPos.y < playheadY) {
-            float playheadDist = min((playheadY - currentPos.y) * 2.0, 1.0);
-            half3 playheadGradient = mix(selectionColor, half3(0.0, 0.0, 0.0), playheadDist);
-            emissiveColor += playheadGradient;
+        float playheadDist = min((playheadY - currentPos.y) * 2.0, 1.0);
+        if (playheadDist < 0) {
+            playheadDist += 2;
         }
+        half3 playheadGradient = mix(selectionColor, half3(0.0, 0.0, 0.0), playheadDist);
+        emissiveColor += playheadGradient;
     }
     
     // Apply the emissive color
