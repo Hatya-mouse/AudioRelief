@@ -31,7 +31,9 @@ struct ContentView: View {
                         .padding()
                 }
                 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    PlaybackSpeedControl(playbackSpeed: $viewModel.playbackSpeed)
+                        .padding(.leading)
                     PlayPauseButton(
                         isPlaying: $viewModel.isPlayingAudio,
                         onPlay: viewModel.playAudio,

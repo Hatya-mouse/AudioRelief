@@ -35,6 +35,20 @@ struct CameraModeButton: View {
     }
 }
 
+struct PlaybackSpeedControl: View {
+    @Binding var playbackSpeed: Float
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "gauge.open.with.lines.needle.33percent")
+            Slider(value: $playbackSpeed, in: 1.0...20.0) {
+                Text("Playback Speed")
+            }
+            .frame(maxWidth: 200)
+        }
+    }
+}
+
 struct PlayPauseButton: View {
     @Binding var isPlaying: Bool
     let onPlay: () -> Void

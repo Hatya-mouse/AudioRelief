@@ -24,8 +24,9 @@ class AudioPlayer {
     
     let frequencies: PointerPair<Float>
     
-    var isStopping: Bool
-    var playhead: Float
+    let isStopping: Atomic<Bool>
+    let playhead: Atomic<Float>
+    let playbackSpeed: Atomic<Float>
     
     init(dimension: SIMD2<Int>, pointer: UnsafePointer<Float>) {
         self.audioEngine = AVAudioEngine()
@@ -40,8 +41,9 @@ class AudioPlayer {
         
         self.frequencies = PointerPair(.allocate(capacity: dimension.x), .allocate(capacity: dimension.x))
         
-        self.isStopping = false
-        self.playhead = 0
+        self.isStopping = Atomic(false)
+        self.playhead = Atomic(0)
+        self.playbackSpeed = Atomic(0)
         
         self.updateFrequencies()
     }
@@ -54,13 +56,17 @@ class AudioPlayer {
         // Create a render block to generate sound
         let renderBlock: AVAudioSourceNodeRenderBlock = { [weak self] (_, _, frameCount, audioBufferList) -> OSStatus in
             guard let self = self else { return noErr }
+            let isStopping = self.isStopping.load(ordering: .relaxed)
+            let playbackSpeed = self.playbackSpeed.load(ordering: .acquiring)
+            var currentPlayhead = self.playhead.load(ordering: .acquiring)
+            
             let listPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
             
             for frame in 0..<Int(frameCount) {
-                let frequency = self.interpolateFrequency(self.playhead)
+                let frequency = self.interpolateFrequency(currentPlayhead)
                 let sample = self.getSample(phase: phase) * volume
                 
-                if self.isStopping {
+                if isStopping {
                     volume *= 0.99
                 } else if volume < 1.0 {
                     volume += (1.0 - volume) * 0.05
@@ -73,9 +79,11 @@ class AudioPlayer {
                 
                 let deltaPhase = frequency / self.sampleRate
                 phase = (phase + deltaPhase).truncatingRemainder(dividingBy: 1)
-                self.playhead = (self.playhead + 0.00001).truncatingRemainder(dividingBy: 1)
+                currentPlayhead = (currentPlayhead + playbackSpeed * 0.000001).truncatingRemainder(dividingBy: 1)
                 time += self.deltaTime
             }
+            
+            self.playhead.store(currentPlayhead, ordering: .releasing)
             return noErr
         }
         
@@ -103,16 +111,24 @@ class AudioPlayer {
     
     @MainActor
     func pause() {
-        self.isStopping = true
+        self.isStopping.store(true, ordering: .releasing)
         Task {
             try? await Task.sleep(nanoseconds: 50_000_000)
             
-            self.isStopping = false
+            self.isStopping.store(false, ordering: .releasing)
             self.audioEngine.stop()
             
             self.audioEngine.disconnectNodeInput(self.audioEngine.mainMixerNode)
             self.audioEngine.disconnectNodeInput(self.audioEngine.outputNode)
         }
+    }
+    
+    func setPlaybackSpeed(_ desired: Float) {
+        self.playbackSpeed.store(desired, ordering: .releasing)
+    }
+    
+    func getPlayhead() -> Float {
+        self.playhead.load(ordering: .acquiring)
     }
     
     func getFrequencyOf(_ row: Int) -> Float {
@@ -136,6 +152,8 @@ class AudioPlayer {
     }
     
     func getSample(phase: Float) -> Float {
+        let playhead = self.playhead.load(ordering: .acquiring)
+        
         let rowFactor = playhead.truncatingRemainder(dividingBy: 1)
         let phaseFactor = phase.truncatingRemainder(dividingBy: 1)
 

@@ -12,19 +12,17 @@ import Metal
 class HeightMapMeshEntity: Entity, HasModel {
     var heightMapMesh: HeightMapMesh?
     
-    var playhead: UnsafePointer<Float>?
     var isPlayingAudio: Bool = false
     var cursorLocation: SIMD2<Float> = .zero
     var radius: Float = 0
     
-    private func setup(device: MTLDevice?, playhead: UnsafePointer<Float>?, size: SIMD2<Float>, dimensions: SIMD2<UInt32>, maxThickness: Float, baseThickness: Float) {
+    private func setup(device: MTLDevice?, size: SIMD2<Float>, dimensions: SIMD2<UInt32>, maxThickness: Float, baseThickness: Float) {
         guard let heightMapMesh = try? HeightMapMesh(size: size, dimensions: dimensions, maxThickness: maxThickness, baseThickness: baseThickness),
               let lowLevelMesh = try? MeshResource(from: heightMapMesh.mesh) else {
             assertionFailure("Failed to create height map mesh and get its low-level mesh.")
             return
         }
         self.heightMapMesh = heightMapMesh
-        self.playhead = playhead
         
         // Setup the material
         if let device = device {
@@ -40,14 +38,14 @@ class HeightMapMeshEntity: Entity, HasModel {
         self.updateCollision()
     }
     
-    init(device: MTLDevice, playhead: UnsafePointer<Float>, size: SIMD2<Float>, dimensions: SIMD2<UInt32>, maxThickness: Float, baseThickness: Float) {
+    init(device: MTLDevice, size: SIMD2<Float>, dimensions: SIMD2<UInt32>, maxThickness: Float, baseThickness: Float) {
         super.init()
-        setup(device: device, playhead: playhead, size: size, dimensions: dimensions, maxThickness: maxThickness, baseThickness: baseThickness)
+        setup(device: device, size: size, dimensions: dimensions, maxThickness: maxThickness, baseThickness: baseThickness)
     }
     
     required init() {
         super.init()
-        setup(device: nil, playhead: nil, size: [1, 1], dimensions: [512, 512], maxThickness: 1, baseThickness: 0.5)
+        setup(device: nil, size: [1, 1], dimensions: [512, 512], maxThickness: 1, baseThickness: 0.5)
     }
     
     func updateCollision() {

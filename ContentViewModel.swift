@@ -43,6 +43,11 @@ class ContentViewModel: ObservableObject {
     @Published var brush: BrushMode = BrushMode()
     
     @Published var isPlayingAudio: Bool = false
+    @Published var playbackSpeed: Float = 1.0 {
+        didSet {
+            audioPlayer?.setPlaybackSpeed(playbackSpeed)
+        }
+    }
     @Published var currentMode: ViewMode = .edit
     
     let device = MTLCreateSystemDefaultDevice()!
@@ -80,7 +85,7 @@ class ContentViewModel: ObservableObject {
         // Set the audio session category to playback
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         
-        heightMapMeshEntity = HeightMapMeshEntity(device: device, playhead: &audioPlayer!.playhead, size: meshSize, dimensions: [UInt32(meshDimension.x), UInt32(meshDimension.y)], maxThickness: 0.25, baseThickness: 0.1)
+        heightMapMeshEntity = HeightMapMeshEntity(device: device, size: meshSize, dimensions: [UInt32(meshDimension.x), UInt32(meshDimension.y)], maxThickness: 0.25, baseThickness: 0.1)
     }
     
     func playAudio() {

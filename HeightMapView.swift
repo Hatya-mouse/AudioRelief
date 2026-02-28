@@ -38,7 +38,7 @@ extension ContentView {
                     computeEncoder.endEncoding()
                     commandBuffer.commit()
                     
-                    viewModel.heightMapMeshEntity.updateMaterial(playhead: viewModel.isPlayingAudio ? viewModel.audioPlayer!.playhead : -1)
+                    viewModel.heightMapMeshEntity.updateMaterial(playhead: viewModel.isPlayingAudio ? viewModel.audioPlayer!.getPlayhead() : -1)
                 }
             } update: { content in
                 if viewModel.currentMode == .edit {
