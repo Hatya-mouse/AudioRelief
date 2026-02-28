@@ -8,8 +8,9 @@
 import SwiftUI
 import RealityKit
 import Metal
+import AVFoundation
 
-enum CurrentMode: String, CaseIterable {
+enum ViewMode: String, CaseIterable, Identifiable {
     case edit = "Edit"
     case camera = "Camera"
     var id: String { rawValue }
@@ -31,18 +32,18 @@ class BrushMode {
 @MainActor
 class ContentViewModel: ObservableObject {
     @Published var isDragging: Bool = false
-    @Published var lastDragWidth: CGFloat = 0
+    @Published var lastDragWidth: CGFloat = 0.0
     @Published var dragPoint: CGPoint = .zero
     @Published var lastRotateAmount: CGSize = .zero
     @Published var totalAngle: SIMD2<Float> = .zero
     
-    @Published var initialMagnify: Float = 0
-    @Published var magnifyAmount: Float = 0
+    @Published var initialMagnify: Float = 1.0
+    @Published var magnifyAmount: Float = 0.0
     
     @Published var brush: BrushMode = BrushMode()
     
     @Published var isPlayingAudio: Bool = false
-    @Published var currentMode: CurrentMode = .edit
+    @Published var currentMode: ViewMode = .edit
     
     let device = MTLCreateSystemDefaultDevice()!
     let commandQueue: MTLCommandQueue
@@ -75,7 +76,10 @@ class ContentViewModel: ObservableObject {
             heightMapAudioBuffer = nil
             audioPlayer = nil
         }
-
+        
+        // Set the audio session category to playback
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        
         heightMapMeshEntity = HeightMapMeshEntity(device: device, playhead: &audioPlayer!.playhead, size: meshSize, dimensions: [UInt32(meshDimension.x), UInt32(meshDimension.y)], maxThickness: 0.25, baseThickness: 0.1)
     }
     

@@ -8,28 +8,30 @@
 import SwiftUI
 
 struct EditModeButton: View {
-    @Binding var currentMode: CurrentMode
+    @Binding var currentMode: ViewMode
     
     var body: some View {
-        Button("Edit Mode", systemImage: "pencil") {
+        let isActive = currentMode == .edit
+        Button("Edit Mode", systemImage: isActive ? "paintbrush.fill" : "paintbrush") {
             withAnimation {
                 currentMode = .edit
             }
         }
-        .foregroundColor(currentMode == .edit ? Color.accentColor : nil)
+        .tint(isActive ? Color.accentColor : nil)
     }
 }
 
 struct CameraModeButton: View {
-    @Binding var currentMode: CurrentMode
+    @Binding var currentMode: ViewMode
     
     var body: some View {
-        Button("Camera Rotation Mode", systemImage: "rotate.3d") {
+        let isActive = currentMode == .camera
+        Button("Camera Rotation Mode", systemImage: isActive ? "rotate.3d.fill" : "rotate.3d") {
             withAnimation {
                 currentMode = .camera
             }
         }
-        .foregroundColor(currentMode == .camera ? Color.accentColor : nil)
+        .tint(isActive ? Color.accentColor : nil)
     }
 }
 

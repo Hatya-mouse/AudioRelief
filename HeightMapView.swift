@@ -11,51 +11,57 @@ import RealityKit
 extension ContentView {
     @ViewBuilder
     var heightMapView: some View {
-        RealityView { content in
-            // Add the HeightMapMeshEntity
-            content.add(viewModel.heightMapMeshEntity)
-            
-            // Prepare the mesh
-            guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
-                  let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
-            let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-            viewModel.heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: viewModel.heightMapGPUBuffer, height: 0.5)
-            
-            computeEncoder.endEncoding()
-            commandBuffer.commit()
-            
-            _ = content.subscribe(to: SceneEvents.Update.self) { event in
+        GeometryReader { proxy in
+            RealityView { content in
+                // Add the HeightMapMeshEntity
+                content.add(viewModel.heightMapMeshEntity)
+                // Set the initial transform
+                let initialRotation = simd_quatf(angle: .pi / 4, axis: [1, 0, 0]) * simd_quatf(angle: .pi / 4, axis: [0, 1, 0])
+                viewModel.heightMapMeshEntity.transform = Transform(rotation: initialRotation)
+                viewModel.totalAngle = [.pi / 4, .pi / 4]
+                
+                // Prepare the mesh
                 guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
                       let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
                 let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-                viewModel.heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: viewModel.heightMapGPUBuffer, brush: viewModel.brush)
+                viewModel.heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: viewModel.heightMapGPUBuffer, height: 0.5)
                 
                 computeEncoder.endEncoding()
                 commandBuffer.commit()
                 
-                viewModel.heightMapMeshEntity.updateMaterial(playhead: viewModel.isPlayingAudio ? viewModel.audioPlayer!.playhead : -1)
-            }
-        } update: { content in
-            if viewModel.currentMode == .edit {
-                guard let ray = content.ray(through: viewModel.dragPoint, in: .global, to: .scene) else { return }
-                
-                if let scene = viewModel.heightMapMeshEntity.scene {
-                    let hits = scene.raycast(origin: ray.origin, direction: ray.direction, length: 100)
+                _ = content.subscribe(to: SceneEvents.Update.self) { event in
+                    guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
+                          let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
+                    let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
+                    viewModel.heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: viewModel.heightMapGPUBuffer, brush: viewModel.brush)
                     
-                    if let firstHit = hits.first {
-                        if viewModel.heightMapMeshEntity.heightMapMesh!.isInteractionHappening {
-                            let localLocation = viewModel.heightMapMeshEntity.convert(position: firstHit.position, from: nil)
-                            let interactionPosition = SIMD2(localLocation.x, localLocation.z)
-                            viewModel.heightMapMeshEntity.heightMapMesh?.interactionPosition = interactionPosition
-                            viewModel.heightMapMeshEntity.highlightCursor(cursorLocation: interactionPosition, radius: viewModel.brush.radius)
+                    computeEncoder.endEncoding()
+                    commandBuffer.commit()
+                    
+                    viewModel.heightMapMeshEntity.updateMaterial(playhead: viewModel.isPlayingAudio ? viewModel.audioPlayer!.playhead : -1)
+                }
+            } update: { content in
+                if viewModel.currentMode == .edit {
+                    guard let ray = content.ray(through: viewModel.dragPoint, in: .global, to: .scene) else { return }
+                    
+                    if let scene = viewModel.heightMapMeshEntity.scene {
+                        let hits = scene.raycast(origin: ray.origin, direction: ray.direction, length: 100)
+                        
+                        if let firstHit = hits.first {
+                            if viewModel.heightMapMeshEntity.heightMapMesh!.isInteractionHappening {
+                                let localLocation = viewModel.heightMapMeshEntity.convert(position: firstHit.position, from: nil)
+                                let interactionPosition = SIMD2(localLocation.x, localLocation.z)
+                                viewModel.heightMapMeshEntity.heightMapMesh?.interactionPosition = interactionPosition
+                                viewModel.heightMapMeshEntity.highlightCursor(cursorLocation: interactionPosition, radius: viewModel.brush.radius)
+                            }
                         }
                     }
                 }
             }
+            .gesture(editGesture)
+            .gesture(cameraMoveGesture(proxy.size))
+            .gesture(magnifyGesture(proxy.size.width))
         }
-        .gesture(editGesture)
-        .gesture(cameraMoveGesture)
-        .gesture(magnifyGesture)
     }
     
     var editGesture: (some Gesture)? {
@@ -81,17 +87,23 @@ extension ContentView {
         : nil
     }
     
-    var cameraMoveGesture: (some Gesture)? {
+    func cameraMoveGesture(_ viewSize: CGSize) -> (some Gesture)? {
         viewModel.currentMode == .camera
         ? DragGesture()
             .onChanged { value in
-                let rotDelta: SIMD2<Float> = [Float(value.translation.width - viewModel.lastRotateAmount.width), Float(value.translation.height - viewModel.lastRotateAmount.height)]
-                viewModel.totalAngle += rotDelta / 700
+                // Adjust the drag amount based on the view size
+                let adjustedWidth = value.translation.width / viewSize.width
+                let adjustedHeight = value.translation.height / viewSize.height
+                // Calculate the rotation delta
+                let rotDelta: SIMD2<Float> = [Float(adjustedWidth - viewModel.lastRotateAmount.width), Float(adjustedHeight - viewModel.lastRotateAmount.height)]
+                viewModel.totalAngle += rotDelta * 4
+                // Limit pitch rotation
                 viewModel.totalAngle.y = max(-.pi / 2, min(viewModel.totalAngle.y, .pi / 2))
+                // Apply the rotation
                 let rotX = simd_quatf(angle: viewModel.totalAngle.x, axis: SIMD3(0, 1, 0))
                 let rotY = simd_quatf(angle: viewModel.totalAngle.y, axis: SIMD3(1, 0, 0))
                 viewModel.heightMapMeshEntity.setOrientation(rotY * rotX, relativeTo: nil)
-                viewModel.lastRotateAmount = value.translation
+                viewModel.lastRotateAmount = CGSize(width: adjustedWidth, height: adjustedHeight)
             }
             .onEnded { _ in
                 viewModel.lastRotateAmount = .zero
@@ -99,10 +111,14 @@ extension ContentView {
         : nil
     }
     
-    var magnifyGesture: some Gesture {
+    func magnifyGesture(_ viewWidth: CGFloat) -> some Gesture {
         MagnifyGesture()
             .onChanged { value in
+                // Adjust the magnification amount based on the view width
+//                let adjustedMagnification = Float(value.magnification / viewWidth)
+                // Apply log to the magnification amount
                 let logScale = log(Float(value.magnification))
+                // Apply the magnification
                 viewModel.magnifyAmount = max(0.5, min(viewModel.initialMagnify + logScale, 2.0))
                 viewModel.heightMapMeshEntity.transform.translation = [0, 0, -1 + viewModel.magnifyAmount]
             }

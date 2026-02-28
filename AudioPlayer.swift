@@ -61,9 +61,9 @@ class AudioPlayer {
                 let sample = self.getSample(phase: phase) * volume
                 
                 if self.isStopping {
-                    volume = volume * 0.99
-                } else if volume < 0.5 {
-                    volume = volume * 0.99 + 0.5 * 0.01
+                    volume *= 0.99
+                } else if volume < 1.0 {
+                    volume += (1.0 - volume) * 0.05
                 }
                 
                 for buffer in listPointer {

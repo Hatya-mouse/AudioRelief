@@ -23,13 +23,12 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarLeading) {
                     EditModeButton(currentMode: $viewModel.currentMode)
-                        .accessibilityLabel("Change to edit mode")
                     CameraModeButton(currentMode: $viewModel.currentMode)
-                        .accessibilityLabel("Change to camera movement mode")
                 }
                 
-                if #available(iOS 26, macOS 26, macCatalyst 26, *) {
-                    ToolbarSpacer(.flexible)
+                ToolbarItem(placement: .title) {
+                    Text(viewModel.currentMode == ViewMode.edit ? "Edit Mode" : "Camera Rotation Mode")
+                        .padding()
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -39,7 +38,6 @@ struct ContentView: View {
                         onPause: viewModel.pauseAudio
                     )
                     .keyboardShortcut(.space, modifiers: [])
-                    .accessibilityLabel("Play / Pause")
                 }
             }
         }

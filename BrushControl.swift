@@ -10,7 +10,7 @@ import SwiftUI
 struct BrushControl: View {
     @Binding var brush: BrushMode
     
-    let currentMode: CurrentMode
+    let currentMode: ViewMode
     
     var body: some View {
         if currentMode == .edit {
