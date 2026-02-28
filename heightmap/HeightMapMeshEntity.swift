@@ -29,8 +29,8 @@ class HeightMapMeshEntity: Entity, HasModel {
         // Setup the material
         if let device = device {
             let library = device.makeDefaultLibrary()!
-            let highlightShader = CustomMaterial.SurfaceShader(named: "highlightCursorShader", in: library)
-            var material = try! CustomMaterial(surfaceShader: highlightShader, lightingModel: .lit)
+            let heightMapShader = CustomMaterial.SurfaceShader(named: "heightMapShader", in: library)
+            var material = try! CustomMaterial(surfaceShader: heightMapShader, lightingModel: .clearcoat)
             material.custom.value = SIMD4(.zero, maxThickness)
             self.components.set(ModelComponent(mesh: lowLevelMesh, materials: [material]))
         }
