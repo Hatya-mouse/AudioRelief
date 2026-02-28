@@ -60,14 +60,14 @@ struct BrushControl: View {
                     .frame(maxWidth: 300)
                 }
             }
-            .padding(20)
+            .padding(12)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(.thickMaterial)
             )
-            .padding(20)
+            .padding(10)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1)
         }

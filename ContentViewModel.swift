@@ -31,7 +31,7 @@ class BrushMode {
 
 @MainActor
 class ContentViewModel: ObservableObject {
-    @Published var isDragging: Bool = false
+    @Published var isDrawing: Bool = false
     @Published var lastDragWidth: CGFloat = 0.0
     @Published var dragPoint: CGPoint = .zero
     @Published var lastRotateAmount: CGSize = .zero
@@ -54,9 +54,7 @@ class ContentViewModel: ObservableObject {
     let commandQueue: MTLCommandQueue
     
     /// A heightmap buffer for gpu.
-    let heightMapGPUBuffer: (any MTLBuffer)?
-    /// A heightmap buffer for the audio thread.
-    let heightMapAudioBuffer: (any MTLBuffer)?
+    let heightMapBuffer: MTLBufferPair?
     let heightMapMeshEntity: HeightMapMeshEntity
     
     let audioPlayer: AudioPlayer?
@@ -72,13 +70,10 @@ class ContentViewModel: ObservableObject {
         
         if let gpuBuffer = device.makeBuffer(bytes: heightMap, length: bufferSize, options: .storageModeShared),
            let audioBuffer = device.makeBuffer(bytes: heightMap, length: bufferSize, options: .storageModeShared) {
-            heightMapGPUBuffer = gpuBuffer
-            heightMapAudioBuffer = audioBuffer
-            let pointer = audioBuffer.contents().bindMemory(to: Float.self, capacity: bufferSize)
-            audioPlayer = AudioPlayer(dimension: meshDimension, pointer: pointer)
+            heightMapBuffer = MTLBufferPair(gpuBuffer, audioBuffer, capacity: bufferSize)
+            audioPlayer = AudioPlayer(dimension: meshDimension, pointer: heightMapBuffer!.pointer)
         } else {
-            heightMapGPUBuffer = nil
-            heightMapAudioBuffer = nil
+            heightMapBuffer = nil
             audioPlayer = nil
         }
         

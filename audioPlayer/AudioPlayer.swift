@@ -17,7 +17,7 @@ class AudioPlayer {
     let outputNode: AVAudioOutputNode
     
     let dimension: SIMD2<Int>
-    let heightMapPointer: UnsafePointer<Float>
+    let heightMapPointer: PointerPair<Float>
     
     let sampleRate: Float = 44100.0
     let deltaTime: Float
@@ -28,7 +28,7 @@ class AudioPlayer {
     let playhead: Atomic<Float>
     let playbackSpeed: Atomic<Float>
     
-    init(dimension: SIMD2<Int>, pointer: UnsafePointer<Float>) {
+    init(dimension: SIMD2<Int>, pointer: PointerPair<Float>) {
         self.audioEngine = AVAudioEngine()
         self.audioFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(self.sampleRate), channels: 1, interleaved: true)!
         self.mixerNode = self.audioEngine.mainMixerNode
@@ -74,7 +74,7 @@ class AudioPlayer {
                 
                 for buffer in listPointer {
                     let bufferPointer: UnsafeMutableBufferPointer<Float> = UnsafeMutableBufferPointer(buffer)
-                    bufferPointer[frame] = sample
+                    bufferPointer[frame] = sample * volume
                 }
                 
                 let deltaPhase = frequency / self.sampleRate

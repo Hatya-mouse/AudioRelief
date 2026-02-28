@@ -11,7 +11,7 @@ import Synchronization
 class PointerPair<T> {
     let pointerA: UnsafeMutablePointer<T>
     let pointerB: UnsafeMutablePointer<T>
-    private let writablePointer: Atomic<Int>
+    let writablePointer: Atomic<Int>
     
     init(_ a: UnsafeMutablePointer<T>, _ b: UnsafeMutablePointer<T>) {
         writablePointer = Atomic(0)
@@ -19,8 +19,21 @@ class PointerPair<T> {
         pointerB = b
     }
     
+    subscript(index: Int) -> T {
+        get {
+            return getReadablePointer()[index]
+        }
+        set(newValue) {
+            getWritablePointer()[index] = newValue
+        }
+    }
+    
     private func getPointer(_ active: Int) -> UnsafeMutablePointer<T> {
         return active == 0 ? pointerA : pointerB
+    }
+    
+    func advanced(by n: Int) -> UnsafeMutablePointer<T> {
+        getReadablePointer().advanced(by: n)
     }
     
     func getReadablePointer() -> UnsafeMutablePointer<T> {

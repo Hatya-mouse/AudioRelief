@@ -24,20 +24,14 @@ extension ContentView {
                 guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
                       let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
                 let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-                viewModel.heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: viewModel.heightMapGPUBuffer, height: 0.5)
+                viewModel.heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), height: 0.5)
                 
                 computeEncoder.endEncoding()
                 commandBuffer.commit()
                 
+                viewModel.heightMapBuffer?.swap()
+                
                 _ = content.subscribe(to: SceneEvents.Update.self) { event in
-                    guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
-                          let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
-                    let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-                    viewModel.heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: viewModel.heightMapGPUBuffer, brush: viewModel.brush)
-                    
-                    computeEncoder.endEncoding()
-                    commandBuffer.commit()
-                    
                     viewModel.heightMapMeshEntity.updateMaterial(playhead: viewModel.isPlayingAudio ? viewModel.audioPlayer!.getPlayhead() : -1)
                 }
             } update: { content in
@@ -48,11 +42,11 @@ extension ContentView {
                         let hits = scene.raycast(origin: ray.origin, direction: ray.direction, length: 100)
                         
                         if let firstHit = hits.first {
-                            if viewModel.heightMapMeshEntity.heightMapMesh!.isInteractionHappening {
+                            if viewModel.isDrawing {
                                 let localLocation = viewModel.heightMapMeshEntity.convert(position: firstHit.position, from: nil)
-                                let interactionPosition = SIMD2(localLocation.x, localLocation.z)
-                                viewModel.heightMapMeshEntity.heightMapMesh?.interactionPosition = interactionPosition
+                                let interactionPosition: SIMD2<Float> = [localLocation.x, localLocation.z]
                                 viewModel.heightMapMeshEntity.highlightCursor(cursorLocation: interactionPosition, radius: viewModel.brush.radius)
+                                sculptAndUpdate(interactionPosition: interactionPosition)
                             }
                         }
                     }
@@ -64,24 +58,32 @@ extension ContentView {
         }
     }
     
+    func sculptAndUpdate(interactionPosition: SIMD2<Float>) {
+        guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
+              let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
+        let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
+        viewModel.heightMapMeshEntity.heightMapMesh?.sculptAndUpdate(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), brush: viewModel.brush, interactionPosition: interactionPosition)
+        
+        computeEncoder.endEncoding()
+        commandBuffer.commit()
+    }
+    
     var editGesture: (some Gesture)? {
         viewModel.currentMode == .edit
         ? DragGesture(coordinateSpace: .global)
             .targetedToEntity(viewModel.heightMapMeshEntity)
             .onChanged { value in
                 viewModel.dragPoint = value.location
-                viewModel.heightMapMeshEntity.heightMapMesh?.isInteractionHappening = true
+                viewModel.isDrawing = true
             }
             .onEnded { value in
                 viewModel.dragPoint = value.location
-                viewModel.heightMapMeshEntity.heightMapMesh?.isInteractionHappening = false
+                viewModel.isDrawing = false
                 
                 viewModel.heightMapMeshEntity.stopHighlight()
                 viewModel.heightMapMeshEntity.updateCollision()
                 
-                let src = viewModel.heightMapGPUBuffer!.contents()
-                let dst = viewModel.heightMapAudioBuffer!.contents()
-                memcpy(dst, src, viewModel.heightMapGPUBuffer!.length)
+                viewModel.heightMapBuffer?.swap()
                 viewModel.audioPlayer?.updateFrequencies()
             }
         : nil
