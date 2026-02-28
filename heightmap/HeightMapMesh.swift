@@ -9,11 +9,6 @@ import Foundation
 import RealityKit
 import Metal
 
-struct PlaneVertex {
-    var position: SIMD3<Float>
-    var normal: SIMD3<Float>
-}
-
 @MainActor
 class HeightMapMesh {
     var mesh: LowLevelMesh!
@@ -317,10 +312,11 @@ class HeightMapMesh {
         heightMapGenerator.updateVertices(computeContext: computeContext, mesh: mesh, heightMapBuffer: heightMapBuffer, meshParams: &meshParams)
     }
     
-    func update(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, radius: Float, strength: Float) {
+    func update(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, brush: BrushMode) {
         if isInteractionHappening {
-            var params = SculptureParams(radius: radius,
-                                         strength: strength,
+            var params = SculptureParams(brush: brush.brushType.rawValue,
+                                         radius: brush.radius,
+                                         strength: brush.strength,
                                          position: interactionPosition,
                                          dimensions: dimensions,
                                          size: size,

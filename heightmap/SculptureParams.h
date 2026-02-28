@@ -14,6 +14,7 @@ struct PlaneVertex {
 };
 
 struct SculptureParams {
+    uint32_t brush;
     float radius;
     float strength;
     simd_float2 position;

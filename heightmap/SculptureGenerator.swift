@@ -47,10 +47,10 @@ class SculptureGenerator {
         let vertexBuffer = mesh.replace(bufferIndex: 0, using: computeContext.commandBuffer)
         computeContext.computeEncoder.setBuffer(vertexBuffer, offset: 0, index: 1)
         computeContext.computeEncoder.setBuffer(heightMapBuffer, offset: 0, index: 2)
-
+        
         let threadsPerGroup = MTLSize(width: 8, height: 8, depth: 1)
         let numGroups = MTLSize(width: (w + 7) / 8, height: (h + 7) / 8, depth: 1)
-
+        
         computeContext.computeEncoder.dispatchThreadgroups(numGroups, threadsPerThreadgroup: threadsPerGroup)
     }
 }

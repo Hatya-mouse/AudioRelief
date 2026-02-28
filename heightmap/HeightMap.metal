@@ -27,6 +27,19 @@ float3 computeNormal(device float* heightData, uint2 coords, float2 size, uint2 
     return normalize(directionVector);
 }
 
+float smoothBrush(float distance, float radius, float strength) {
+    return (cos(clamp(distance / radius, 0.0, 1.0) * M_PI_F) + 1) * strength;
+}
+
+float sharpBrush(float distance, float radius, float strength) {
+    return (1 - clamp(distance / radius, 0.0, 1.0)) * strength;
+}
+
+float squareBrush(float distance, float radius, float strength) {
+    float delta = 0.1;
+    return smoothstep(1.0, 1.0 - delta, distance / radius) * strength;
+}
+
 [[kernel]]
 void sculptSurface(constant SculptureParams &params [[buffer(0)]],
                    device float* heightMap [[buffer(1)]],
@@ -39,10 +52,18 @@ void sculptSurface(constant SculptureParams &params [[buffer(0)]],
                                     remap(pixelCoords.y, float2(0, params.dimensions.y - 1), float2(-params.size.y / 2, params.size.y / 2)));
     
     float distance = length(currentPosition - params.position);
-    if (distance <= params.radius) {
-        float sculptureAmount = (cos((distance / params.radius) * M_PI_F) + 1) * params.strength;
-        heightMapData = saturate(heightMapData + sculptureAmount);
+    float sculptureAmount = 0.0;
+    if (params.brush == 0) {
+        // 0: Smooth brush
+        sculptureAmount = smoothBrush(distance, params.radius, params.strength);
+    } else if (params.brush == 1) {
+        // 1: Sharp (triangle) brush
+        sculptureAmount = sharpBrush(distance, params.radius, params.strength);
+    } else if (params.brush == 2) {
+        // 2: Square brush
+        sculptureAmount = squareBrush(distance, params.radius, params.strength);
     }
+    heightMapData = saturate(heightMapData + sculptureAmount);
     
     heightMap[pixelIndex] = heightMapData;
 }

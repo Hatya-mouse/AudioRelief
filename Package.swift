@@ -10,8 +10,7 @@ import AppleProductTypes
 let package = Package(
     name: "AudioRelief",
     platforms: [
-        .iOS("16.0"),
-        .macCatalyst("18.0")
+        .iOS("18.0")
     ],
     products: [
         .iOSApplication(
@@ -21,8 +20,8 @@ let package = Package(
             teamIdentifier: "Z9UYCZF4U9",
             displayVersion: "1.0",
             bundleVersion: "1",
-            appIcon: .placeholder(icon: .mic),
-            accentColor: .presetColor(.pink),
+            appIcon: .asset("AppIcon"),
+            accentColor: .presetColor(.blue),
             supportedDeviceFamilies: [
                 .pad,
                 .phone
@@ -32,7 +31,8 @@ let package = Package(
                 .landscapeRight,
                 .landscapeLeft,
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
-            ]
+            ],
+            appCategory: .music
         )
     ],
     targets: [

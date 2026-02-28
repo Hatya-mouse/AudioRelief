@@ -14,7 +14,13 @@ struct ComputeUpdateContext {
     let computeEncoder: MTLComputeCommandEncoder
 }
 
+struct PlaneVertex {
+    var position: SIMD3<Float>
+    var normal: SIMD3<Float>
+}
+
 struct SculptureParams {
+    var brush: UInt32
     var radius: Float
     var strength: Float
     var position: simd_float2

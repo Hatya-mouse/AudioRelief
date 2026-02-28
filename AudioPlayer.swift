@@ -13,6 +13,8 @@ import Synchronization
 class AudioPlayer {
     let audioEngine: AVAudioEngine
     let audioFormat: AVAudioFormat
+    let mixerNode: AVAudioMixerNode
+    let outputNode: AVAudioOutputNode
     
     let dimension: SIMD2<Int>
     let heightMapPointer: UnsafePointer<Float>
@@ -28,9 +30,12 @@ class AudioPlayer {
     init(dimension: SIMD2<Int>, pointer: UnsafePointer<Float>) {
         self.audioEngine = AVAudioEngine()
         self.audioFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(self.sampleRate), channels: 1, interleaved: true)!
-        self.dimension = dimension
+        self.mixerNode = self.audioEngine.mainMixerNode
+        self.outputNode = self.audioEngine.outputNode
         
+        self.dimension = dimension
         self.heightMapPointer = pointer
+        
         self.deltaTime = 1.0 / self.sampleRate
         
         self.frequencies = PointerPair(.allocate(capacity: dimension.x), .allocate(capacity: dimension.x))
@@ -45,9 +50,10 @@ class AudioPlayer {
         var time: Float = 0.0
         var phase: Float = 0.0
         var volume: Float = 0.0
-    
+
         // Create a render block to generate sound
-        let renderBlock: AVAudioSourceNodeRenderBlock = { (_, _, frameCount, audioBufferList) -> OSStatus in
+        let renderBlock: AVAudioSourceNodeRenderBlock = { [weak self] (_, _, frameCount, audioBufferList) -> OSStatus in
+            guard let self = self else { return noErr }
             let listPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
             
             for frame in 0..<Int(frameCount) {
@@ -72,16 +78,17 @@ class AudioPlayer {
             }
             return noErr
         }
+        
         // Create an AVAudioSourceNode for generating sound
         let sourceNode = AVAudioSourceNode(renderBlock: renderBlock)
         
         // Create the format
-        let inputFormat = audioEngine.outputNode.inputFormat(forBus: 0)
+        let inputFormat = outputNode.inputFormat(forBus: 0)
         
         // Attach the node to the engine
         audioEngine.attach(sourceNode)
-        audioEngine.connect(sourceNode, to: audioEngine.mainMixerNode, format: inputFormat)
-        audioEngine.connect(audioEngine.mainMixerNode, to: audioEngine.outputNode, format: nil)
+        audioEngine.connect(sourceNode, to: mixerNode, format: inputFormat)
+        audioEngine.connect(mixerNode, to: outputNode, format: nil)
         
         try? audioEngine.start()
     }
