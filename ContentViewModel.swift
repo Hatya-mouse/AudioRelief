@@ -26,14 +26,15 @@ enum BrushType: UInt32, CaseIterable, Identifiable {
 class BrushMode {
     var brushType: BrushType = .smooth
     var radius: Float = 0.1
-    var strength: Float = 0
+    var strength: Float = 0.01
 }
 
 @MainActor
 class ContentViewModel: ObservableObject {
     @Published var isDrawing: Bool = false
-    @Published var lastDragWidth: CGFloat = 0.0
     @Published var dragPoint: CGPoint = .zero
+    var sculptPoint: SIMD2<Float> = .zero
+    
     @Published var lastRotateAmount: CGSize = .zero
     @Published var totalAngle: SIMD2<Float> = .zero
     
@@ -42,13 +43,13 @@ class ContentViewModel: ObservableObject {
     
     @Published var brush: BrushMode = BrushMode()
     
+    @Published var currentMode: ViewMode = .edit
     @Published var isPlayingAudio: Bool = false
-    @Published var playbackSpeed: Float = 1.0 {
+    @Published var playbackSpeed: Float = 10.0 {
         didSet {
             audioPlayer?.setPlaybackSpeed(playbackSpeed)
         }
     }
-    @Published var currentMode: ViewMode = .edit
     
     let device = MTLCreateSystemDefaultDevice()!
     let commandQueue: MTLCommandQueue
@@ -85,11 +86,9 @@ class ContentViewModel: ObservableObject {
     
     func playAudio() {
         audioPlayer?.play()
-        heightMapMeshEntity.isPlayingAudio = true
     }
     
     func pauseAudio() {
         audioPlayer?.pause()
-        heightMapMeshEntity.isPlayingAudio = false
     }
 }

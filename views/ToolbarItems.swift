@@ -39,9 +39,9 @@ struct PlaybackSpeedControl: View {
     @Binding var playbackSpeed: Float
     
     var body: some View {
-        HStack {
+        HStack(alignment: .center) {
             Image(systemName: "gauge.open.with.lines.needle.33percent")
-            Slider(value: $playbackSpeed, in: 1.0...20.0) {
+            Slider(value: $playbackSpeed, in: 1.0...40.0) {
                 Text("Playback Speed")
             }
             .frame(maxWidth: 200)

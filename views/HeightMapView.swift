@@ -32,6 +32,9 @@ extension ContentView {
                 viewModel.heightMapBuffer?.swap()
                 
                 _ = content.subscribe(to: SceneEvents.Update.self) { event in
+                    if viewModel.isDrawing {
+                        sculptAndUpdate()
+                    }
                     viewModel.heightMapMeshEntity.updateMaterial(playhead: viewModel.isPlayingAudio ? viewModel.audioPlayer!.getPlayhead() : -1)
                 }
             } update: { content in
@@ -42,12 +45,9 @@ extension ContentView {
                         let hits = scene.raycast(origin: ray.origin, direction: ray.direction, length: 100)
                         
                         if let firstHit = hits.first {
-                            if viewModel.isDrawing {
-                                let localLocation = viewModel.heightMapMeshEntity.convert(position: firstHit.position, from: nil)
-                                let interactionPosition: SIMD2<Float> = [localLocation.x, localLocation.z]
-                                viewModel.heightMapMeshEntity.highlightCursor(cursorLocation: interactionPosition, radius: viewModel.brush.radius)
-                                sculptAndUpdate(interactionPosition: interactionPosition)
-                            }
+                            let localLocation = viewModel.heightMapMeshEntity.convert(position: firstHit.position, from: nil)
+                            let interactionPosition: SIMD2<Float> = [localLocation.x, localLocation.z]
+                            viewModel.sculptPoint = interactionPosition
                         }
                     }
                 }
@@ -58,11 +58,11 @@ extension ContentView {
         }
     }
     
-    func sculptAndUpdate(interactionPosition: SIMD2<Float>) {
+    func sculptAndUpdate() {
         guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
               let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
         let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-        viewModel.heightMapMeshEntity.heightMapMesh?.sculptAndUpdate(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), brush: viewModel.brush, interactionPosition: interactionPosition)
+        viewModel.heightMapMeshEntity.heightMapMesh?.sculptAndUpdate(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), brush: viewModel.brush, sculptPoint: viewModel.sculptPoint)
         
         computeEncoder.endEncoding()
         commandBuffer.commit()
@@ -70,11 +70,15 @@ extension ContentView {
     
     var editGesture: (some Gesture)? {
         viewModel.currentMode == .edit
-        ? DragGesture(coordinateSpace: .global)
+        ? DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .targetedToEntity(viewModel.heightMapMeshEntity)
             .onChanged { value in
                 viewModel.dragPoint = value.location
                 viewModel.isDrawing = true
+                viewModel.heightMapMeshEntity.highlightCursor(
+                    cursorLocation: viewModel.sculptPoint,
+                    radius: viewModel.brush.radius
+                )
             }
             .onEnded { value in
                 viewModel.dragPoint = value.location

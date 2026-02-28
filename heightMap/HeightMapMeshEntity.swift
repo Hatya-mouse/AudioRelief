@@ -12,7 +12,6 @@ import Metal
 class HeightMapMeshEntity: Entity, HasModel {
     var heightMapMesh: HeightMapMesh?
     
-    var isPlayingAudio: Bool = false
     var cursorLocation: SIMD2<Float> = .zero
     var radius: Float = 0
     

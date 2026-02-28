@@ -307,14 +307,16 @@ class HeightMapMesh {
         heightMapGenerator.updateVertices(computeContext: computeContext, mesh: mesh, heightMapBuffer: heightMapBuffer, meshParams: &meshParams)
     }
     
-    func sculptAndUpdate(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, brush: BrushMode, interactionPosition: SIMD2<Float>) {
-        var params = SculptureParams(brush: brush.brushType.rawValue,
-                                     radius: brush.radius,
-                                     strength: brush.strength,
-                                     position: interactionPosition,
-                                     dimensions: dimensions,
-                                     size: size,
-                                     cellSize: SIMD2(x: size.x / (Float(dimensions.x) - 1), y: size.y / (Float(dimensions.x) - 1)))
+    func sculptAndUpdate(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, brush: BrushMode, sculptPoint: SIMD2<Float>) {
+        var params = SculptureParams(
+            brush: brush.brushType.rawValue,
+            radius: brush.radius,
+            strength: brush.strength,
+            position: sculptPoint,
+            dimensions: dimensions,
+            size: size,
+            cellSize: SIMD2(x: size.x / (Float(dimensions.x) - 1), y: size.y / (Float(dimensions.x) - 1))
+        )
         heightMapGenerator.sculptSurface(computeContext: computeContext, heightMapBuffer: heightMapBuffer, sculptureParams: &params)
         
         var meshParams = MeshParams(dimensions: dimensions, size: size, maxThickness: maxThickness)

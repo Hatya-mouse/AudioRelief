@@ -37,23 +37,24 @@ void heightMapShader(realitykit::surface_parameters params) {
     float2 currentPos = params.geometry().model_position().xz;
     float dist = distance(currentPos, clickPos);
     
-    half3 selectionColor = half3(0.25, 0.75, 1.0);
+    half3 highlightColor = half3(0.25, 0.75, 1.0);
     half3 emissiveColor = half3(0.0, 0.0, 0.0);
     if (dist < radius - BRUSH_BORDER_THICKNESS) {
-        emissiveColor += selectionColor;
+        emissiveColor += highlightColor;
     } else if (dist < radius) {
-        emissiveColor += selectionColor * 2;
+        emissiveColor += highlightColor * 2;
     }
     
     // Highlight the playhead
     // If the audio player is paused, playhead is less than zero
     if (playhead > 0) {
         float playheadY = playhead - SIZE_Y / 2;
-        float playheadDist = min((playheadY - currentPos.y) * 4.0, 1.0);
+        float playheadDist = (playheadY - currentPos.y) * 4.0;
         if (playheadDist < 0) {
             playheadDist += 4;
         }
-        half3 playheadGradient = mix(selectionColor, half3(0.0, 0.0, 0.0), playheadDist);
+        playheadDist = min(playheadDist, 1.0);
+        half3 playheadGradient = mix(highlightColor, half3(0.0, 0.0, 0.0), playheadDist);
         emissiveColor += playheadGradient;
     }
     

@@ -26,14 +26,9 @@ struct ContentView: View {
                     CameraModeButton(currentMode: $viewModel.currentMode)
                 }
                 
-                ToolbarItem(placement: .title) {
-                    Text(viewModel.currentMode == ViewMode.edit ? "Edit" : "Camera Rotation")
-                        .padding()
-                }
-                
-                ToolbarItem {
+                ToolbarItem(placement: .topBarTrailing) {
                     PlaybackSpeedControl(playbackSpeed: $viewModel.playbackSpeed)
-                        .padding(.leading, 8)
+                        .padding(.horizontal, 6)
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {

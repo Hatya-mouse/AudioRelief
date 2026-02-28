@@ -43,7 +43,7 @@ class AudioPlayer {
         
         self.isStopping = Atomic(false)
         self.playhead = Atomic(0)
-        self.playbackSpeed = Atomic(0)
+        self.playbackSpeed = Atomic(10)
         
         self.updateFrequencies()
     }
@@ -64,7 +64,8 @@ class AudioPlayer {
             
             for frame in 0..<Int(frameCount) {
                 let frequency = self.interpolateFrequency(currentPlayhead)
-                let sample = self.getSample(phase: phase) * volume
+                let sample = self.getSample(phase: phase)
+//                let sample = max(lastSample - noiseThreshold, min(newSample, lastSample + noiseThreshold))
                 
                 if isStopping {
                     volume *= 0.99

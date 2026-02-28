@@ -50,7 +50,7 @@ struct BrushControl: View {
                 
                 VStack(alignment: .leading) {
                     Text("Strength")
-                    Slider(value: $brush.strength, in: -0.01...0.01) {
+                    Slider(value: $brush.strength, in: -0.02...0.02) {
                         Text("Strength")
                     } minimumValueLabel: {
                         Image(systemName: "arrow.down")
@@ -67,7 +67,7 @@ struct BrushControl: View {
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(.thickMaterial)
             )
-            .padding(10)
+            .padding(20)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(1)
         }
