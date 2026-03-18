@@ -302,12 +302,12 @@ class HeightMapMesh {
                                                  bounds: bounds)])
     }
     
-    func prepareMesh(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, height: Float) {
+    func initializeMesh(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, height: Float) {
         var meshParams = MeshParams(dimensions: dimensions, size: size, maxThickness: maxThickness)
         heightMapGenerator.updateVertices(computeContext: computeContext, mesh: mesh, heightMapBuffer: heightMapBuffer, meshParams: &meshParams)
     }
     
-    func sculptAndUpdate(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, brush: BrushMode, sculptPoint: SIMD2<Float>) {
+    func sculpt(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?, brush: BrushMode, sculptPoint: SIMD2<Float>) {
         var params = SculptureParams(
             brush: brush.brushType.rawValue,
             radius: brush.radius,
@@ -318,7 +318,9 @@ class HeightMapMesh {
             cellSize: SIMD2(x: size.x / (Float(dimensions.x) - 1), y: size.y / (Float(dimensions.x) - 1))
         )
         heightMapGenerator.sculptSurface(computeContext: computeContext, heightMapBuffer: heightMapBuffer, sculptureParams: &params)
-        
+    }
+    
+    func update(computeContext: ComputeUpdateContext, heightMapBuffer: (any MTLBuffer)?) {
         var meshParams = MeshParams(dimensions: dimensions, size: size, maxThickness: maxThickness)
         heightMapGenerator.updateVertices(computeContext: computeContext, mesh: mesh, heightMapBuffer: heightMapBuffer, meshParams: &meshParams)
     }

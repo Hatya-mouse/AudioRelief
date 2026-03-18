@@ -21,6 +21,15 @@ enum BrushType: UInt32, CaseIterable, Identifiable {
     case sharp = 1
     case square = 2
     var id: UInt32 { rawValue }
+    
+    var imageName: String {
+        switch self {
+        case .smooth: "smooth"
+        case .sharp: "sharp"
+        case .square: "square"
+        }
+    }
+    var displayName: String { imageName.capitalized }
 }
 
 class BrushMode {
@@ -50,6 +59,8 @@ class ContentViewModel: ObservableObject {
             audioPlayer?.setPlaybackSpeed(playbackSpeed)
         }
     }
+    
+    @Published var document: BufferFile
     
     let device = MTLCreateSystemDefaultDevice()!
     let commandQueue: MTLCommandQueue
@@ -82,6 +93,8 @@ class ContentViewModel: ObservableObject {
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         
         heightMapMeshEntity = HeightMapMeshEntity(device: device, size: meshSize, dimensions: [UInt32(meshDimension.x), UInt32(meshDimension.y)], maxThickness: 0.25, baseThickness: 0.1)
+        
+        document = BufferFile()
     }
     
     func playAudio() {
@@ -90,5 +103,26 @@ class ContentViewModel: ObservableObject {
     
     func pauseAudio() {
         audioPlayer?.pause()
+    }
+    
+    func loadBuffer() throws {
+        let newBuffer = try document.loadData(device: device)
+        heightMapBuffer?.replaceBuffer(newBuffer, capacity: newBuffer.length)
+        heightMapBuffer?.swap()
+        
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+                                     let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
+        let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
+        let writableBuffer = heightMapBuffer?.getWritableBuffer()
+        heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: writableBuffer)
+        
+        computeEncoder.endEncoding()
+        commandBuffer.commit()
+    }
+    
+    func prepareBufferForExport() {
+        let readableBuffer = heightMapBuffer!.getReadableBuffer()
+        let data = BufferFile.prepareExportData(device: device, buffer: readableBuffer)
+        document.data = data
     }
 }

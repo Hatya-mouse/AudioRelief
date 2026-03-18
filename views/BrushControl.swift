@@ -18,18 +18,18 @@ struct BrushControl: View {
                 VStack(alignment: .leading) {
                     Text("Brush")
                     Picker("Brush", selection: $brush.brushType) {
-                        ForEach(BrushType.allCases) { brushType in
-                            switch brushType {
-                            case .smooth:
-                                Text("Smooth")
-                                    .tag(brushType)
-                            case .sharp:
-                                Text("Sharp")
-                                    .tag(brushType)
-                            case .square:
-                                Text("Square")
-                                    .tag(brushType)
+                        ForEach(BrushType.allCases, id: \.self) { brushType in
+                            Label {
+                                Text(brushType.displayName)
+                            } icon: {
+                                Image(brushType.imageName)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 24, height: 24)
                             }
+                            .labelStyle(.iconOnly)
+                            .tag(brushType)
                         }
                     }
                     .pickerStyle(.segmented)

@@ -9,8 +9,8 @@ import Foundation
 import Synchronization
 
 class PointerPair<T> {
-    let pointerA: UnsafeMutablePointer<T>
-    let pointerB: UnsafeMutablePointer<T>
+    var pointerA: UnsafeMutablePointer<T>
+    var pointerB: UnsafeMutablePointer<T>
     let writablePointer: Atomic<Int>
     
     init(_ a: UnsafeMutablePointer<T>, _ b: UnsafeMutablePointer<T>) {

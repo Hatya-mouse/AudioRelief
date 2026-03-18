@@ -5,13 +5,13 @@
 //  Created by Kasatani Shuntaro on 2026/02/28.
 //
 
-import Foundation
+import SwiftUI
 import Metal
 
 class MTLBufferPair {
     let pointer: PointerPair<Float>
-    let bufferA: any MTLBuffer
-    let bufferB: any MTLBuffer
+    var bufferA: any MTLBuffer
+    var bufferB: any MTLBuffer
     
     init(_ a: any MTLBuffer, _ b: any MTLBuffer, capacity: Int) {
         let pointerA = a.contents().bindMemory(to: Float.self, capacity: capacity)
@@ -33,6 +33,17 @@ class MTLBufferPair {
     func getWritableBuffer() -> any MTLBuffer {
         let writable = pointer.writablePointer.load(ordering: .acquiring)
         return getBuffer(writable)
+    }
+    
+    func replaceBuffer(_ buffer: any MTLBuffer, capacity: Int) {
+        let writable = pointer.writablePointer.load(ordering: .acquiring)
+        if writable == 0 {
+            self.bufferA = buffer
+            self.pointer.pointerA = buffer.contents().bindMemory(to: Float.self, capacity: capacity)
+        } else {
+            self.bufferB = buffer
+            self.pointer.pointerB = buffer.contents().bindMemory(to: Float.self, capacity: capacity)
+        }
     }
     
     /// Swaps the pointer and sync the buffer content.

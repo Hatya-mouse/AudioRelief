@@ -24,7 +24,7 @@ extension ContentView {
                 guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
                       let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
                 let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-                viewModel.heightMapMeshEntity.heightMapMesh?.prepareMesh(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), height: 0.5)
+                viewModel.heightMapMeshEntity.heightMapMesh?.initializeMesh(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), height: 0.5)
                 
                 computeEncoder.endEncoding()
                 commandBuffer.commit()
@@ -62,7 +62,9 @@ extension ContentView {
         guard let commandBuffer = viewModel.commandQueue.makeCommandBuffer(),
               let computeEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
         let context = ComputeUpdateContext(commandBuffer: commandBuffer, computeEncoder: computeEncoder)
-        viewModel.heightMapMeshEntity.heightMapMesh?.sculptAndUpdate(computeContext: context, heightMapBuffer: viewModel.heightMapBuffer?.getWritableBuffer(), brush: viewModel.brush, sculptPoint: viewModel.sculptPoint)
+        let buffer = viewModel.heightMapBuffer?.getWritableBuffer()
+        viewModel.heightMapMeshEntity.heightMapMesh?.sculpt(computeContext: context, heightMapBuffer: buffer, brush: viewModel.brush, sculptPoint: viewModel.sculptPoint)
+        viewModel.heightMapMeshEntity.heightMapMesh?.update(computeContext: context, heightMapBuffer: buffer)
         
         computeEncoder.endEncoding()
         commandBuffer.commit()
